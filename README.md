@@ -67,7 +67,7 @@ jobs:
       -
         name: Import GPG key
         id: import_gpg
-        uses: crazy-max/ghaction-import-gpg@v3
+        uses: getdreams/ghaction-import-gpg
         with:
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.PASSPHRASE }}
@@ -98,7 +98,7 @@ jobs:
         uses: actions/checkout@v2
       -
         name: Import GPG key
-        uses: crazy-max/ghaction-import-gpg@v3
+        uses: getdreams/ghaction-import-gpg
         with:
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.PASSPHRASE }}

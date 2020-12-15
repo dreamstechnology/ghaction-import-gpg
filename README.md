@@ -1,0 +1,165 @@
+## GitHub Action GPG Import
+
+## About
+
+This is Dreams fork of GPG import GitHub Action. For the latest version and when needing to sync visit [ghaction-import-gpg](https://github.com/crazy-max/ghaction-import-gpg).
+___
+
+* [Features](#features)
+* [Prerequisites](#prerequisites)
+* [Usage](#usage)
+  * [Workflow](#workflow)
+  * [Sign commits](#sign-commits)
+* [Customizing](#customizing)
+  * [inputs](#inputs)
+  * [outputs](#outputs)
+* [Keep up-to-date with GitHub Dependabot](#keep-up-to-date-with-github-dependabot)
+* [How can I help?](#how-can-i-help)
+* [License](#license)
+
+## Features
+
+* Works on Linux, MacOS and Windows [virtual environments](https://help.github.com/en/articles/virtual-environments-for-github-actions#supported-virtual-environments-and-hardware-resources)
+* Allow to seed the internal cache of `gpg-agent` with provided passphrase
+* Purge imported GPG key, cache information and kill agent from runner
+* (Git) Enable signing for Git commits, tags and pushes
+* (Git) Configure and check committer info against GPG key
+
+## Prerequisites
+
+First, [generate a GPG key](https://docs.github.com/en/github/authenticating-to-github/generating-a-new-gpg-key) and
+export the GPG private key as an ASCII armored version to your clipboard:
+
+```shell
+# macOS
+gpg --armor --export-secret-key joe@foo.bar | pbcopy
+
+# Ubuntu (assuming GNU base64)
+gpg --armor --export-secret-key joe@foo.bar -w0 | xclip
+
+# Arch
+gpg --armor --export-secret-key joe@foo.bar | xclip -selection clipboard -i
+
+# FreeBSD (assuming BSD base64)
+gpg --armor --export-secret-key joe@foo.bar | xclip
+```
+
+Paste your clipboard as a [`secret`](https://help.github.com/en/actions/configuring-and-managing-workflows/creating-and-storing-encrypted-secrets) named `GPG_PRIVATE_KEY` for example. Create another secret with the `PASSPHRASE` if applicable.
+
+## Usage
+
+### Workflow
+
+```yaml
+name: import-gpg
+
+on:
+  push:
+    branches: master
+
+jobs:
+  import-gpg:
+    runs-on: ubuntu-latest
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v2
+      -
+        name: Import GPG key
+        id: import_gpg
+        uses: crazy-max/ghaction-import-gpg@v3
+        with:
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.PASSPHRASE }}
+      -
+        name: GPG user IDs
+        run: |
+          echo "fingerprint: ${{ steps.import_gpg.outputs.fingerprint }}"
+          echo "keyid:       ${{ steps.import_gpg.outputs.keyid }}"
+          echo "name:        ${{ steps.import_gpg.outputs.name }}"
+          echo "email:       ${{ steps.import_gpg.outputs.email }}"
+```
+
+### Sign commits
+
+```yaml
+name: import-gpg
+
+on:
+  push:
+    branches: master
+
+jobs:
+  sign-commit:
+    runs-on: ubuntu-latest
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v2
+      -
+        name: Import GPG key
+        uses: crazy-max/ghaction-import-gpg@v3
+        with:
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.PASSPHRASE }}
+          git-user-signingkey: true
+          git-commit-gpgsign: true
+      -
+        name: Sign commit and push changes
+        run: |
+          echo foo > bar.txt
+          git add .
+          git commit -S -m "This commit is signed!"
+          git push
+```
+
+## Customizing
+
+### inputs
+
+Following inputs can be used as `step.with` keys
+
+| Name                                  | Type    | Description                                    |
+|---------------------------------------|---------|------------------------------------------------|
+| `gpg-private-key`                     | String  | GPG private key exported as an ASCII armored version or its base64 encoding (**required**) |
+| `passphrase`                          | String  | Passphrase of the GPG private key |
+| `git-user-signingkey`                 | Bool    | Set GPG signing keyID for this Git repository (default `false`) |
+| `git-commit-gpgsign`**¹**             | Bool    | Sign all commits automatically. (default `false`) |
+| `git-tag-gpgsign`**¹**                | Bool    | Sign all tags automatically. (default `false`) |
+| `git-push-gpgsign`**¹**               | Bool    | Sign all pushes automatically. (default `false`) |
+| `git-committer-name`**¹**             | String  | Set commit author's name (defaults to the name associated with the GPG key) |
+| `git-committer-email`**¹**            | String  | Set commit author's email (defaults to the email address associated with the GPG key) |
+| `workdir`                             | String  | Working directory (below repository root) (default `.`) |
+
+> **¹** `git-user-signingkey` needs to be enabled for these inputs to be used.
+
+### outputs
+
+Following outputs are available
+
+| Name          | Type    | Description                           |
+|---------------|---------|---------------------------------------|
+| `fingerprint` | String  | Fingerprint of the GPG key (recommended as [user ID](https://www.gnupg.org/documentation/manuals/gnupg/Specify-a-User-ID.html)) |
+| `keyid`       | String  | Low 64 bits of the X.509 certificate SHA-1 fingerprint |
+| `name`        | String  | Name associated with the GPG key       |
+| `email`       | String  | Email address associated with the GPG key |
+
+## Keep up-to-date with GitHub Dependabot
+
+Since [Dependabot](https://docs.github.com/en/github/administering-a-repository/keeping-your-actions-up-to-date-with-github-dependabot)
+has [native GitHub Actions support](https://docs.github.com/en/github/administering-a-repository/configuration-options-for-dependency-updates#package-ecosystem),
+to enable it on your GitHub repo all you need to do is add the `.github/dependabot.yml` file:
+
+```yaml
+version: 2
+updates:
+  # Maintain dependencies for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+```
+
+## License
+
+MIT. See `LICENSE` for more details.

@@ -1,0 +1,43 @@
+{
+  "name": "import-gpg",
+  "description": "GitHub Action to easily import a GPG key",
+  "main": "lib/main.js",
+  "scripts": {
+    "build": "tsc && ncc build",
+    "format": "prettier --write **/*.ts",
+    "format-check": "prettier --check **/*.ts",
+    "test": "jest --coverage",
+    "pre-checkin": "yarn run format && yarn run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crazy-max/ghaction-import-gpg.git"
+  },
+  "keywords": [
+    "actions",
+    "gpg",
+    "signing",
+    "git"
+  ],
+  "author": "CrazyMax",
+  "license": "MIT",
+  "dependencies": {
+    "@actions/core": "^1.2.6",
+    "@actions/exec": "^1.0.4",
+    "addressparser": "^1.0.1",
+    "openpgp": "^4.10.9"
+  },
+  "devDependencies": {
+    "@types/jest": "^26.0.14",
+    "@types/node": "^14.11.2",
+    "@types/openpgp": "^4.4.14",
+    "@vercel/ncc": "^0.24.1",
+    "jest": "^26.0.1",
+    "jest-circus": "^26.0.1",
+    "jest-runtime": "^26.0.1",
+    "prettier": "^2.1.2",
+    "ts-jest": "^26.4.1",
+    "typescript": "^4.0.3",
+    "typescript-formatter": "^7.2.2"
+  }
+}

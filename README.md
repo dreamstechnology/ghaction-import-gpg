@@ -1,8 +1,18 @@
-## GitHub Action GPG Import
+[![GitHub release](https://img.shields.io/github/release/crazy-max/ghaction-import-gpg.svg?style=flat-square)](https://github.com/crazy-max/ghaction-import-gpg/releases/latest)
+[![GitHub marketplace](https://img.shields.io/badge/marketplace-import--gpg-blue?logo=github&style=flat-square)](https://github.com/marketplace/actions/import-gpg)
+[![Test workflow](https://img.shields.io/github/workflow/status/crazy-max/ghaction-import-gpg/test?label=test&logo=github&style=flat-square)](https://github.com/crazy-max/ghaction-import-gpg/actions?workflow=test)
+[![Codecov](https://img.shields.io/codecov/c/github/crazy-max/ghaction-import-gpg?logo=codecov&style=flat-square)](https://codecov.io/gh/crazy-max/ghaction-import-gpg)
+[![Become a sponsor](https://img.shields.io/badge/sponsor-crazy--max-181717.svg?logo=github&style=flat-square)](https://github.com/sponsors/crazy-max)
+[![Paypal Donate](https://img.shields.io/badge/donate-paypal-00457c.svg?logo=paypal&style=flat-square)](https://www.paypal.me/crazyws)
 
 ## About
 
-This is Dreams fork of GPG import GitHub Action. For the latest version and when needing to sync visit [ghaction-import-gpg](https://github.com/crazy-max/ghaction-import-gpg).
+GitHub Action to easily import a GPG key.
+
+If you are interested, [check out](https://git.io/Je09Y) my other :octocat: GitHub Actions!
+
+![Import GPG](.github/ghaction-import-gpg.png)
+
 ___
 
 * [Features](#features)
@@ -67,7 +77,7 @@ jobs:
       -
         name: Import GPG key
         id: import_gpg
-        uses: getdreams/ghaction-import-gpg
+        uses: crazy-max/ghaction-import-gpg@v3
         with:
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.PASSPHRASE }}
@@ -98,7 +108,7 @@ jobs:
         uses: actions/checkout@v2
       -
         name: Import GPG key
-        uses: getdreams/ghaction-import-gpg
+        uses: crazy-max/ghaction-import-gpg@v3
         with:
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.PASSPHRASE }}
@@ -159,6 +169,12 @@ updates:
     schedule:
       interval: "daily"
 ```
+
+## How can I help?
+
+All kinds of contributions are welcome :raised_hands:! The most basic way to show your support is to star :star2: the project, or to raise issues :speech_balloon: You can also support this project by [**becoming a sponsor on GitHub**](https://github.com/sponsors/crazy-max) :clap: or by making a [Paypal donation](https://www.paypal.me/crazyws) to ensure this journey continues indefinitely! :rocket:
+
+Thanks again for your support, it is much appreciated! :pray:
 
 ## License
 

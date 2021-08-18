@@ -15,26 +15,29 @@ async function run(): Promise<void> {
       process.chdir(inputs.workdir);
     }
 
-    core.info('📣 GnuPG info');
     const version = await gpg.getVersion();
     const dirs = await gpg.getDirs();
-    core.info(`Version    : ${version.gnupg} (libgcrypt ${version.libgcrypt})`);
-    core.info(`Libdir     : ${dirs.libdir}`);
-    core.info(`Libexecdir : ${dirs.libexecdir}`);
-    core.info(`Datadir    : ${dirs.datadir}`);
-    core.info(`Homedir    : ${dirs.homedir}`);
+    await core.group(`📣 GnuPG info`, async () => {
+      core.info(`Version    : ${version.gnupg} (libgcrypt ${version.libgcrypt})`);
+      core.info(`Libdir     : ${dirs.libdir}`);
+      core.info(`Libexecdir : ${dirs.libexecdir}`);
+      core.info(`Datadir    : ${dirs.datadir}`);
+      core.info(`Homedir    : ${dirs.homedir}`);
+    });
 
-    core.info('🔮 Checking GPG private key');
     const privateKey = await openpgp.readPrivateKey(inputs.gpgPrivateKey);
-    core.debug(`Fingerprint  : ${privateKey.fingerprint}`);
-    core.debug(`KeyID        : ${privateKey.keyID}`);
-    core.debug(`Name         : ${privateKey.name}`);
-    core.debug(`Email        : ${privateKey.email}`);
-    core.debug(`CreationTime : ${privateKey.creationTime}`);
+    await core.group(`🔮 Checking GPG private key`, async () => {
+      core.info(`Fingerprint  : ${privateKey.fingerprint}`);
+      core.info(`KeyID        : ${privateKey.keyID}`);
+      core.info(`Name         : ${privateKey.name}`);
+      core.info(`Email        : ${privateKey.email}`);
+      core.info(`CreationTime : ${privateKey.creationTime}`);
+    });
 
-    core.info('🔑 Importing GPG private key');
-    await gpg.importKey(inputs.gpgPrivateKey).then(stdout => {
-      core.debug(stdout);
+    await core.group(`🔑 Importing GPG private key`, async () => {
+      await gpg.importKey(inputs.gpgPrivateKey).then(stdout => {
+        core.info(stdout);
+      });
     });
 
     if (inputs.passphrase) {
@@ -42,23 +45,25 @@ async function run(): Promise<void> {
       await gpg.configureAgent(gpg.agentConfig);
 
       core.info('📌 Getting keygrips');
-      for (let keygrip of await gpg.getKeygrips(privateKey.fingerprint)) {
-        core.info(`🔓 Presetting passphrase for ${keygrip}`);
-        await gpg.presetPassphrase(keygrip, inputs.passphrase).then(stdout => {
-          core.debug(stdout);
-        });
-      }
+      await core.group(`📌 Getting keygrips`, async () => {
+        for (let keygrip of await gpg.getKeygrips(privateKey.fingerprint)) {
+          core.info(`🔓 Presetting passphrase for ${keygrip}`);
+          await gpg.presetPassphrase(keygrip, inputs.passphrase).then(stdout => {
+            core.debug(stdout);
+          });
+        }
+      });
     }
 
     core.info('🛒 Setting outputs...');
-    core.setOutput('fingerprint', privateKey.fingerprint);
-    core.setOutput('keyid', privateKey.keyID);
-    core.setOutput('name', privateKey.name);
-    core.setOutput('email', privateKey.email);
+    context.setOutput('fingerprint', privateKey.fingerprint);
+    context.setOutput('keyid', privateKey.keyID);
+    context.setOutput('name', privateKey.name);
+    context.setOutput('email', privateKey.email);
 
     if (inputs.gitUserSigningkey) {
       core.info('🔐 Setting GPG signing keyID for this Git repository');
-      await git.setConfig('user.signingkey', privateKey.keyID);
+      await git.setConfig('user.signingkey', privateKey.keyID, inputs.gitConfigGlobal);
 
       const userEmail = inputs.gitCommitterEmail || privateKey.email;
       const userName = inputs.gitCommitterName || privateKey.name;
@@ -69,20 +74,20 @@ async function run(): Promise<void> {
       }
 
       core.info(`🔨 Configuring Git committer (${userName} <${userEmail}>)`);
-      await git.setConfig('user.name', userName);
-      await git.setConfig('user.email', userEmail);
+      await git.setConfig('user.name', userName, inputs.gitConfigGlobal);
+      await git.setConfig('user.email', userEmail, inputs.gitConfigGlobal);
 
       if (inputs.gitCommitGpgsign) {
         core.info('💎 Sign all commits automatically');
-        await git.setConfig('commit.gpgsign', 'true');
+        await git.setConfig('commit.gpgsign', 'true', inputs.gitConfigGlobal);
       }
       if (inputs.gitTagGpgsign) {
         core.info('💎 Sign all tags automatically');
-        await git.setConfig('tag.gpgsign', 'true');
+        await git.setConfig('tag.gpgsign', 'true', inputs.gitConfigGlobal);
       }
       if (inputs.gitPushGpgsign) {
         core.info('💎 Sign all pushes automatically');
-        await git.setConfig('push.gpgsign', 'true');
+        await git.setConfig('push.gpgsign', inputs.gitPushGpgsign, inputs.gitConfigGlobal);
       }
     }
   } catch (error) {

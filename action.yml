@@ -13,6 +13,10 @@ inputs:
   passphrase:
     description: 'Passphrase of the GPG private key'
     required: false
+  git-config-global:
+    description: 'Set Git config global'
+    default: 'false'
+    required: false
   git-user-signingkey:
     description: 'Set GPG signing keyID for this Git repository'
     default: 'false'
@@ -27,7 +31,7 @@ inputs:
     required: false
   git-push-gpgsign:
     description: 'Sign all pushes automatically. git-user-signingkey needs to be enabled'
-    default: 'false'
+    default: 'if-asked'
     required: false
   git-committer-name:
     description: 'Commit author''s name'

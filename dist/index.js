@@ -36,17 +36,19 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.getInputs = void 0;
+exports.setOutput = exports.getInputs = void 0;
 const core = __importStar(__webpack_require__(186));
+const command_1 = __webpack_require__(351);
 function getInputs() {
     return __awaiter(this, void 0, void 0, function* () {
         return {
             gpgPrivateKey: core.getInput('gpg-private-key', { required: true }),
             passphrase: core.getInput('passphrase'),
-            gitUserSigningkey: /true/i.test(core.getInput('git-user-signingkey')),
-            gitCommitGpgsign: /true/i.test(core.getInput('git-commit-gpgsign')),
-            gitTagGpgsign: /true/i.test(core.getInput('git-tag-gpgsign')),
-            gitPushGpgsign: /true/i.test(core.getInput('git-push-gpgsign')),
+            gitConfigGlobal: core.getBooleanInput('git-config-global'),
+            gitUserSigningkey: core.getBooleanInput('git-user-signingkey'),
+            gitCommitGpgsign: core.getBooleanInput('git-commit-gpgsign'),
+            gitTagGpgsign: core.getBooleanInput('git-tag-gpgsign'),
+            gitPushGpgsign: core.getInput('git-push-gpgsign') || 'if-asked',
             gitCommitterName: core.getInput('git-committer-name'),
             gitCommitterEmail: core.getInput('git-committer-email'),
             workdir: core.getInput('workdir') || '.'
@@ -54,69 +56,12 @@ function getInputs() {
     });
 }
 exports.getInputs = getInputs;
+// FIXME: Temp fix https://github.com/actions/toolkit/issues/777
+function setOutput(name, value) {
+    command_1.issueCommand('set-output', { name }, value);
+}
+exports.setOutput = setOutput;
 //# sourceMappingURL=context.js.map
-
-/***/ }),
-
-/***/ 757:
-/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
-
-"use strict";
-
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.exec = void 0;
-const actionsExec = __importStar(__webpack_require__(514));
-exports.exec = (command, args = [], silent) => __awaiter(void 0, void 0, void 0, function* () {
-    let stdout = '';
-    let stderr = '';
-    const options = {
-        silent: silent,
-        ignoreReturnCode: true
-    };
-    options.listeners = {
-        stdout: (data) => {
-            stdout += data.toString();
-        },
-        stderr: (data) => {
-            stderr += data.toString();
-        }
-    };
-    const returnCode = yield actionsExec.exec(command, args, options);
-    return {
-        success: returnCode === 0,
-        stdout: stdout.trim(),
-        stderr: stderr.trim()
-    };
-});
-//# sourceMappingURL=exec.js.map
 
 /***/ }),
 
@@ -155,18 +100,28 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.setConfig = void 0;
-const exec = __importStar(__webpack_require__(757));
+const exec = __importStar(__webpack_require__(514));
 const git = (args = []) => __awaiter(void 0, void 0, void 0, function* () {
-    return yield exec.exec(`git`, args, true).then(res => {
-        if (res.stderr != '' && !res.success) {
+    return yield exec
+        .getExecOutput(`git`, args, {
+        ignoreReturnCode: true,
+        silent: true
+    })
+        .then(res => {
+        if (res.stderr.length > 0 && res.exitCode != 0) {
             throw new Error(res.stderr);
         }
         return res.stdout.trim();
     });
 });
-function setConfig(key, value) {
+function setConfig(key, value, global) {
     return __awaiter(this, void 0, void 0, function* () {
-        yield git(['config', key, value]);
+        let args = ['config'];
+        if (global) {
+            args.push('--global');
+        }
+        args.push(key, value);
+        yield git(args);
     });
 }
 exports.setConfig = setConfig;
@@ -209,10 +164,10 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.killAgent = exports.deleteKey = exports.presetPassphrase = exports.configureAgent = exports.getKeygrips = exports.importKey = exports.getDirs = exports.getVersion = exports.agentConfig = void 0;
+const exec = __importStar(__webpack_require__(514));
 const fs = __importStar(__webpack_require__(747));
 const path = __importStar(__webpack_require__(622));
 const os = __importStar(__webpack_require__(87));
-const exec = __importStar(__webpack_require__(757));
 const openpgp = __importStar(__webpack_require__(666));
 exports.agentConfig = `default-cache-ttl 7200
 max-cache-ttl 31536000
@@ -228,8 +183,13 @@ const getGnupgHome = () => __awaiter(void 0, void 0, void 0, function* () {
     return homedir;
 });
 const gpgConnectAgent = (command) => __awaiter(void 0, void 0, void 0, function* () {
-    return yield exec.exec(`gpg-connect-agent "${command}" /bye`, [], true).then(res => {
-        if (res.stderr != '' && !res.success) {
+    return yield exec
+        .getExecOutput(`gpg-connect-agent "${command}" /bye`, [], {
+        ignoreReturnCode: true,
+        silent: true
+    })
+        .then(res => {
+        if (res.stderr.length > 0 && res.exitCode != 0) {
             throw new Error(res.stderr);
         }
         for (let line of res.stdout.replace(/\r/g, '').trim().split(/\n/g)) {
@@ -241,8 +201,13 @@ const gpgConnectAgent = (command) => __awaiter(void 0, void 0, void 0, function*
     });
 });
 exports.getVersion = () => __awaiter(void 0, void 0, void 0, function* () {
-    return yield exec.exec('gpg', ['--version'], true).then(res => {
-        if (res.stderr != '') {
+    return yield exec
+        .getExecOutput('gpg', ['--version'], {
+        ignoreReturnCode: true,
+        silent: true
+    })
+        .then(res => {
+        if (res.stderr.length > 0 && res.exitCode != 0) {
             throw new Error(res.stderr);
         }
         let gnupgVersion = '';
@@ -265,8 +230,13 @@ exports.getVersion = () => __awaiter(void 0, void 0, void 0, function* () {
     });
 });
 exports.getDirs = () => __awaiter(void 0, void 0, void 0, function* () {
-    return yield exec.exec('gpgconf', ['--list-dirs'], true).then(res => {
-        if (res.stderr != '' && !res.success) {
+    return yield exec
+        .getExecOutput('gpgconf', ['--list-dirs'], {
+        ignoreReturnCode: true,
+        silent: true
+    })
+        .then(res => {
+        if (res.stderr.length > 0 && res.exitCode != 0) {
             throw new Error(res.stderr);
         }
         let libdir = '';
@@ -300,9 +270,12 @@ exports.importKey = (key) => __awaiter(void 0, void 0, void 0, function* () {
     const keyPath = `${keyFolder}/key.pgp`;
     fs.writeFileSync(keyPath, (yield openpgp.isArmored(key)) ? key : Buffer.from(key, 'base64').toString(), { mode: 0o600 });
     return yield exec
-        .exec('gpg', ['--import', '--batch', '--yes', keyPath], true)
+        .getExecOutput('gpg', ['--import', '--batch', '--yes', keyPath], {
+        ignoreReturnCode: true,
+        silent: true
+    })
         .then(res => {
-        if (res.stderr != '' && !res.success) {
+        if (res.stderr.length > 0 && res.exitCode != 0) {
             throw new Error(res.stderr);
         }
         if (res.stderr != '') {
@@ -315,10 +288,12 @@ exports.importKey = (key) => __awaiter(void 0, void 0, void 0, function* () {
     });
 });
 exports.getKeygrips = (fingerprint) => __awaiter(void 0, void 0, void 0, function* () {
-    return yield exec.exec('gpg', ['--batch', '--with-colons', '--with-keygrip', '--list-secret-keys', fingerprint], true).then(res => {
-        if (res.stderr != '' && !res.success) {
-            throw new Error(res.stderr);
-        }
+    return yield exec
+        .getExecOutput('gpg', ['--batch', '--with-colons', '--with-keygrip', '--list-secret-keys', fingerprint], {
+        ignoreReturnCode: true,
+        silent: true
+    })
+        .then(res => {
         let keygrips = [];
         for (let line of res.stdout.replace(/\r/g, '').trim().split(/\n/g)) {
             if (line.startsWith('grp')) {
@@ -342,13 +317,23 @@ exports.presetPassphrase = (keygrip, passphrase) => __awaiter(void 0, void 0, vo
     return yield gpgConnectAgent(`KEYINFO ${keygrip}`);
 });
 exports.deleteKey = (fingerprint) => __awaiter(void 0, void 0, void 0, function* () {
-    yield exec.exec('gpg', ['--batch', '--yes', '--delete-secret-keys', fingerprint], true).then(res => {
-        if (res.stderr != '' && !res.success) {
+    yield exec
+        .getExecOutput('gpg', ['--batch', '--yes', '--delete-secret-keys', fingerprint], {
+        ignoreReturnCode: true,
+        silent: true
+    })
+        .then(res => {
+        if (res.stderr.length > 0 && res.exitCode != 0) {
             throw new Error(res.stderr);
         }
     });
-    yield exec.exec('gpg', ['--batch', '--yes', '--delete-keys', fingerprint], true).then(res => {
-        if (res.stderr != '' && !res.success) {
+    yield exec
+        .getExecOutput('gpg', ['--batch', '--yes', '--delete-keys', fingerprint], {
+        ignoreReturnCode: true,
+        silent: true
+    })
+        .then(res => {
+        if (res.stderr.length > 0 && res.exitCode != 0) {
             throw new Error(res.stderr);
         }
     });
@@ -409,44 +394,49 @@ function run() {
                 core.info(`📂 Using ${inputs.workdir} as working directory...`);
                 process.chdir(inputs.workdir);
             }
-            core.info('📣 GnuPG info');
             const version = yield gpg.getVersion();
             const dirs = yield gpg.getDirs();
-            core.info(`Version    : ${version.gnupg} (libgcrypt ${version.libgcrypt})`);
-            core.info(`Libdir     : ${dirs.libdir}`);
-            core.info(`Libexecdir : ${dirs.libexecdir}`);
-            core.info(`Datadir    : ${dirs.datadir}`);
-            core.info(`Homedir    : ${dirs.homedir}`);
-            core.info('🔮 Checking GPG private key');
+            yield core.group(`📣 GnuPG info`, () => __awaiter(this, void 0, void 0, function* () {
+                core.info(`Version    : ${version.gnupg} (libgcrypt ${version.libgcrypt})`);
+                core.info(`Libdir     : ${dirs.libdir}`);
+                core.info(`Libexecdir : ${dirs.libexecdir}`);
+                core.info(`Datadir    : ${dirs.datadir}`);
+                core.info(`Homedir    : ${dirs.homedir}`);
+            }));
             const privateKey = yield openpgp.readPrivateKey(inputs.gpgPrivateKey);
-            core.debug(`Fingerprint  : ${privateKey.fingerprint}`);
-            core.debug(`KeyID        : ${privateKey.keyID}`);
-            core.debug(`Name         : ${privateKey.name}`);
-            core.debug(`Email        : ${privateKey.email}`);
-            core.debug(`CreationTime : ${privateKey.creationTime}`);
-            core.info('🔑 Importing GPG private key');
-            yield gpg.importKey(inputs.gpgPrivateKey).then(stdout => {
-                core.debug(stdout);
-            });
+            yield core.group(`🔮 Checking GPG private key`, () => __awaiter(this, void 0, void 0, function* () {
+                core.info(`Fingerprint  : ${privateKey.fingerprint}`);
+                core.info(`KeyID        : ${privateKey.keyID}`);
+                core.info(`Name         : ${privateKey.name}`);
+                core.info(`Email        : ${privateKey.email}`);
+                core.info(`CreationTime : ${privateKey.creationTime}`);
+            }));
+            yield core.group(`🔑 Importing GPG private key`, () => __awaiter(this, void 0, void 0, function* () {
+                yield gpg.importKey(inputs.gpgPrivateKey).then(stdout => {
+                    core.info(stdout);
+                });
+            }));
             if (inputs.passphrase) {
                 core.info('⚙️ Configuring GnuPG agent');
                 yield gpg.configureAgent(gpg.agentConfig);
                 core.info('📌 Getting keygrips');
-                for (let keygrip of yield gpg.getKeygrips(privateKey.fingerprint)) {
-                    core.info(`🔓 Presetting passphrase for ${keygrip}`);
-                    yield gpg.presetPassphrase(keygrip, inputs.passphrase).then(stdout => {
-                        core.debug(stdout);
-                    });
-                }
+                yield core.group(`📌 Getting keygrips`, () => __awaiter(this, void 0, void 0, function* () {
+                    for (let keygrip of yield gpg.getKeygrips(privateKey.fingerprint)) {
+                        core.info(`🔓 Presetting passphrase for ${keygrip}`);
+                        yield gpg.presetPassphrase(keygrip, inputs.passphrase).then(stdout => {
+                            core.debug(stdout);
+                        });
+                    }
+                }));
             }
             core.info('🛒 Setting outputs...');
-            core.setOutput('fingerprint', privateKey.fingerprint);
-            core.setOutput('keyid', privateKey.keyID);
-            core.setOutput('name', privateKey.name);
-            core.setOutput('email', privateKey.email);
+            context.setOutput('fingerprint', privateKey.fingerprint);
+            context.setOutput('keyid', privateKey.keyID);
+            context.setOutput('name', privateKey.name);
+            context.setOutput('email', privateKey.email);
             if (inputs.gitUserSigningkey) {
                 core.info('🔐 Setting GPG signing keyID for this Git repository');
-                yield git.setConfig('user.signingkey', privateKey.keyID);
+                yield git.setConfig('user.signingkey', privateKey.keyID, inputs.gitConfigGlobal);
                 const userEmail = inputs.gitCommitterEmail || privateKey.email;
                 const userName = inputs.gitCommitterName || privateKey.name;
                 if (userEmail != privateKey.email) {
@@ -454,19 +444,19 @@ function run() {
                     return;
                 }
                 core.info(`🔨 Configuring Git committer (${userName} <${userEmail}>)`);
-                yield git.setConfig('user.name', userName);
-                yield git.setConfig('user.email', userEmail);
+                yield git.setConfig('user.name', userName, inputs.gitConfigGlobal);
+                yield git.setConfig('user.email', userEmail, inputs.gitConfigGlobal);
                 if (inputs.gitCommitGpgsign) {
                     core.info('💎 Sign all commits automatically');
-                    yield git.setConfig('commit.gpgsign', 'true');
+                    yield git.setConfig('commit.gpgsign', 'true', inputs.gitConfigGlobal);
                 }
                 if (inputs.gitTagGpgsign) {
                     core.info('💎 Sign all tags automatically');
-                    yield git.setConfig('tag.gpgsign', 'true');
+                    yield git.setConfig('tag.gpgsign', 'true', inputs.gitConfigGlobal);
                 }
                 if (inputs.gitPushGpgsign) {
                     core.info('💎 Sign all pushes automatically');
-                    yield git.setConfig('push.gpgsign', 'true');
+                    yield git.setConfig('push.gpgsign', inputs.gitPushGpgsign, inputs.gitConfigGlobal);
                 }
             }
         }
@@ -625,14 +615,27 @@ if (!exports.IsPost) {
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
 var __importStar = (this && this.__importStar) || function (mod) {
     if (mod && mod.__esModule) return mod;
     var result = {};
-    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
-    result["default"] = mod;
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
     return result;
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.issue = exports.issueCommand = void 0;
 const os = __importStar(__webpack_require__(87));
 const utils_1 = __webpack_require__(278);
 /**
@@ -711,6 +714,25 @@ function escapeProperty(s) {
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -720,14 +742,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
-    result["default"] = mod;
-    return result;
-};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.getState = exports.saveState = exports.group = exports.endGroup = exports.startGroup = exports.info = exports.warning = exports.error = exports.debug = exports.isDebug = exports.setFailed = exports.setCommandEcho = exports.setOutput = exports.getBooleanInput = exports.getMultilineInput = exports.getInput = exports.addPath = exports.setSecret = exports.exportVariable = exports.ExitCode = void 0;
 const command_1 = __webpack_require__(351);
 const file_command_1 = __webpack_require__(717);
 const utils_1 = __webpack_require__(278);
@@ -794,7 +810,9 @@ function addPath(inputPath) {
 }
 exports.addPath = addPath;
 /**
- * Gets the value of an input.  The value is also trimmed.
+ * Gets the value of an input.
+ * Unless trimWhitespace is set to false in InputOptions, the value is also trimmed.
+ * Returns an empty string if the value is not defined.
  *
  * @param     name     name of the input to get
  * @param     options  optional. See InputOptions.
@@ -805,9 +823,49 @@ function getInput(name, options) {
     if (options && options.required && !val) {
         throw new Error(`Input required and not supplied: ${name}`);
     }
+    if (options && options.trimWhitespace === false) {
+        return val;
+    }
     return val.trim();
 }
 exports.getInput = getInput;
+/**
+ * Gets the values of an multiline input.  Each value is also trimmed.
+ *
+ * @param     name     name of the input to get
+ * @param     options  optional. See InputOptions.
+ * @returns   string[]
+ *
+ */
+function getMultilineInput(name, options) {
+    const inputs = getInput(name, options)
+        .split('\n')
+        .filter(x => x !== '');
+    return inputs;
+}
+exports.getMultilineInput = getMultilineInput;
+/**
+ * Gets the input value of the boolean type in the YAML 1.2 "core schema" specification.
+ * Support boolean input list: `true | True | TRUE | false | False | FALSE` .
+ * The return value is also in boolean type.
+ * ref: https://yaml.org/spec/1.2/spec.html#id2804923
+ *
+ * @param     name     name of the input to get
+ * @param     options  optional. See InputOptions.
+ * @returns   boolean
+ */
+function getBooleanInput(name, options) {
+    const trueValue = ['true', 'True', 'TRUE'];
+    const falseValue = ['false', 'False', 'FALSE'];
+    const val = getInput(name, options);
+    if (trueValue.includes(val))
+        return true;
+    if (falseValue.includes(val))
+        return false;
+    throw new TypeError(`Input does not meet YAML 1.2 "Core Schema" specification: ${name}\n` +
+        `Support boolean input list: \`true | True | TRUE | false | False | FALSE\``);
+}
+exports.getBooleanInput = getBooleanInput;
 /**
  * Sets the value of an output.
  *
@@ -816,6 +874,7 @@ exports.getInput = getInput;
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function setOutput(name, value) {
+    process.stdout.write(os.EOL);
     command_1.issueCommand('set-output', { name }, value);
 }
 exports.setOutput = setOutput;
@@ -957,14 +1016,27 @@ exports.getState = getState;
 "use strict";
 
 // For internal use, subject to change.
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
 var __importStar = (this && this.__importStar) || function (mod) {
     if (mod && mod.__esModule) return mod;
     var result = {};
-    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
-    result["default"] = mod;
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
     return result;
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.issueCommand = void 0;
 // We use any as a valid input type
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const fs = __importStar(__webpack_require__(747));
@@ -995,6 +1067,7 @@ exports.issueCommand = issueCommand;
 // We use any as a valid input type
 /* eslint-disable @typescript-eslint/no-explicit-any */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.toCommandValue = void 0;
 /**
  * Sanitizes an input into a string so it can be passed into issueCommand safely
  * @param input input to sanitize into a string
@@ -1018,6 +1091,25 @@ exports.toCommandValue = toCommandValue;
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -1027,14 +1119,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
-    result["default"] = mod;
-    return result;
-};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.getExecOutput = exports.exec = void 0;
+const string_decoder_1 = __webpack_require__(304);
 const tr = __importStar(__webpack_require__(159));
 /**
  * Exec a command.
@@ -1060,6 +1147,51 @@ function exec(commandLine, args, options) {
     });
 }
 exports.exec = exec;
+/**
+ * Exec a command and get the output.
+ * Output will be streamed to the live console.
+ * Returns promise with the exit code and collected stdout and stderr
+ *
+ * @param     commandLine           command to execute (can include additional args). Must be correctly escaped.
+ * @param     args                  optional arguments for tool. Escaping is handled by the lib.
+ * @param     options               optional exec options.  See ExecOptions
+ * @returns   Promise<ExecOutput>   exit code, stdout, and stderr
+ */
+function getExecOutput(commandLine, args, options) {
+    var _a, _b;
+    return __awaiter(this, void 0, void 0, function* () {
+        let stdout = '';
+        let stderr = '';
+        //Using string decoder covers the case where a mult-byte character is split
+        const stdoutDecoder = new string_decoder_1.StringDecoder('utf8');
+        const stderrDecoder = new string_decoder_1.StringDecoder('utf8');
+        const originalStdoutListener = (_a = options === null || options === void 0 ? void 0 : options.listeners) === null || _a === void 0 ? void 0 : _a.stdout;
+        const originalStdErrListener = (_b = options === null || options === void 0 ? void 0 : options.listeners) === null || _b === void 0 ? void 0 : _b.stderr;
+        const stdErrListener = (data) => {
+            stderr += stderrDecoder.write(data);
+            if (originalStdErrListener) {
+                originalStdErrListener(data);
+            }
+        };
+        const stdOutListener = (data) => {
+            stdout += stdoutDecoder.write(data);
+            if (originalStdoutListener) {
+                originalStdoutListener(data);
+            }
+        };
+        const listeners = Object.assign(Object.assign({}, options === null || options === void 0 ? void 0 : options.listeners), { stdout: stdOutListener, stderr: stdErrListener });
+        const exitCode = yield exec(commandLine, args, Object.assign(Object.assign({}, options), { listeners }));
+        //flush any remaining characters
+        stdout += stdoutDecoder.end();
+        stderr += stderrDecoder.end();
+        return {
+            exitCode,
+            stdout,
+            stderr
+        };
+    });
+}
+exports.getExecOutput = getExecOutput;
 //# sourceMappingURL=exec.js.map
 
 /***/ }),
@@ -1069,6 +1201,25 @@ exports.exec = exec;
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -1078,20 +1229,15 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
-    result["default"] = mod;
-    return result;
-};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.argStringToArray = exports.ToolRunner = void 0;
 const os = __importStar(__webpack_require__(87));
 const events = __importStar(__webpack_require__(614));
 const child = __importStar(__webpack_require__(129));
 const path = __importStar(__webpack_require__(622));
 const io = __importStar(__webpack_require__(436));
 const ioUtil = __importStar(__webpack_require__(962));
+const timers_1 = __webpack_require__(213);
 /* eslint-disable @typescript-eslint/unbound-method */
 const IS_WINDOWS = process.platform === 'win32';
 /*
@@ -1161,11 +1307,12 @@ class ToolRunner extends events.EventEmitter {
                 s = s.substring(n + os.EOL.length);
                 n = s.indexOf(os.EOL);
             }
-            strBuffer = s;
+            return s;
         }
         catch (err) {
             // streaming lines to console is best effort.  Don't fail a build.
             this._debug(`error processing line. Failed with error ${err}`);
+            return '';
         }
     }
     _getSpawnFileName() {
@@ -1447,7 +1594,7 @@ class ToolRunner extends events.EventEmitter {
             // if the tool is only a file name, then resolve it from the PATH
             // otherwise verify it exists (add extension on Windows if necessary)
             this.toolPath = yield io.which(this.toolPath, true);
-            return new Promise((resolve, reject) => {
+            return new Promise((resolve, reject) => __awaiter(this, void 0, void 0, function* () {
                 this._debug(`exec tool: ${this.toolPath}`);
                 this._debug('arguments:');
                 for (const arg of this.args) {
@@ -1461,9 +1608,12 @@ class ToolRunner extends events.EventEmitter {
                 state.on('debug', (message) => {
                     this._debug(message);
                 });
+                if (this.options.cwd && !(yield ioUtil.exists(this.options.cwd))) {
+                    return reject(new Error(`The cwd: ${this.options.cwd} does not exist!`));
+                }
                 const fileName = this._getSpawnFileName();
                 const cp = child.spawn(fileName, this._getSpawnArgs(optionsNonNull), this._getSpawnOptions(this.options, fileName));
-                const stdbuffer = '';
+                let stdbuffer = '';
                 if (cp.stdout) {
                     cp.stdout.on('data', (data) => {
                         if (this.options.listeners && this.options.listeners.stdout) {
@@ -1472,14 +1622,14 @@ class ToolRunner extends events.EventEmitter {
                         if (!optionsNonNull.silent && optionsNonNull.outStream) {
                             optionsNonNull.outStream.write(data);
                         }
-                        this._processLineBuffer(data, stdbuffer, (line) => {
+                        stdbuffer = this._processLineBuffer(data, stdbuffer, (line) => {
                             if (this.options.listeners && this.options.listeners.stdline) {
                                 this.options.listeners.stdline(line);
                             }
                         });
                     });
                 }
-                const errbuffer = '';
+                let errbuffer = '';
                 if (cp.stderr) {
                     cp.stderr.on('data', (data) => {
                         state.processStderr = true;
@@ -1494,7 +1644,7 @@ class ToolRunner extends events.EventEmitter {
                                 : optionsNonNull.outStream;
                             s.write(data);
                         }
-                        this._processLineBuffer(data, errbuffer, (line) => {
+                        errbuffer = this._processLineBuffer(data, errbuffer, (line) => {
                             if (this.options.listeners && this.options.listeners.errline) {
                                 this.options.listeners.errline(line);
                             }
@@ -1541,7 +1691,7 @@ class ToolRunner extends events.EventEmitter {
                     }
                     cp.stdin.end(this.options.input);
                 }
-            });
+            }));
         });
     }
 }
@@ -1627,7 +1777,7 @@ class ExecState extends events.EventEmitter {
             this._setResult();
         }
         else if (this.processExited) {
-            this.timeout = setTimeout(ExecState.HandleTimeout, this.delay, this);
+            this.timeout = timers_1.setTimeout(ExecState.HandleTimeout, this.delay, this);
         }
     }
     _debug(message) {
@@ -46917,6 +47067,22 @@ module.exports = require("os");
 
 "use strict";
 module.exports = require("path");
+
+/***/ }),
+
+/***/ 304:
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("string_decoder");
+
+/***/ }),
+
+/***/ 213:
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("timers");
 
 /***/ }),
 

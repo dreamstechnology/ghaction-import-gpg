@@ -7,17 +7,16 @@ import * as stateHelper from './state-helper';
 
 async function run(): Promise<void> {
   try {
-    let inputs: context.Inputs = await context.getInputs();
-    stateHelper.setGpgPrivateKey(inputs.gpgPrivateKey);
+    const inputs: context.Inputs = await context.getInputs();
 
     if (inputs.workdir && inputs.workdir !== '.') {
-      core.info(`📂 Using ${inputs.workdir} as working directory...`);
+      core.info(`Using ${inputs.workdir} as working directory...`);
       process.chdir(inputs.workdir);
     }
 
     const version = await gpg.getVersion();
     const dirs = await gpg.getDirs();
-    await core.group(`📣 GnuPG info`, async () => {
+    await core.group(`GnuPG info`, async () => {
       core.info(`Version    : ${version.gnupg} (libgcrypt ${version.libgcrypt})`);
       core.info(`Libdir     : ${dirs.libdir}`);
       core.info(`Libexecdir : ${dirs.libexecdir}`);
@@ -26,7 +25,7 @@ async function run(): Promise<void> {
     });
 
     const privateKey = await openpgp.readPrivateKey(inputs.gpgPrivateKey);
-    await core.group(`🔮 Checking GPG private key`, async () => {
+    await core.group(`GPG private key info`, async () => {
       core.info(`Fingerprint  : ${privateKey.fingerprint}`);
       core.info(`KeyID        : ${privateKey.keyID}`);
       core.info(`Name         : ${privateKey.name}`);
@@ -34,20 +33,32 @@ async function run(): Promise<void> {
       core.info(`CreationTime : ${privateKey.creationTime}`);
     });
 
-    await core.group(`🔑 Importing GPG private key`, async () => {
+    stateHelper.setFingerprint(privateKey.fingerprint);
+
+    let fingerprint = privateKey.fingerprint;
+    if (inputs.fingerprint) {
+      fingerprint = inputs.fingerprint;
+    }
+
+    await core.group(`Fingerprint to use`, async () => {
+      core.info(fingerprint);
+    });
+
+    await core.group(`Importing GPG private key`, async () => {
       await gpg.importKey(inputs.gpgPrivateKey).then(stdout => {
         core.info(stdout);
       });
     });
 
-    if (inputs.passphrase) {
-      core.info('⚙️ Configuring GnuPG agent');
+    if (inputs.passphrase && !inputs.fingerprint) {
+      // Set the passphrase for all subkeys
+
+      core.info('Configuring GnuPG agent');
       await gpg.configureAgent(gpg.agentConfig);
 
-      core.info('📌 Getting keygrips');
-      await core.group(`📌 Getting keygrips`, async () => {
-        for (let keygrip of await gpg.getKeygrips(privateKey.fingerprint)) {
-          core.info(`🔓 Presetting passphrase for ${keygrip}`);
+      await core.group(`Getting keygrips`, async () => {
+        for (const keygrip of await gpg.getKeygrips(fingerprint)) {
+          core.info(`Presetting passphrase for ${keygrip}`);
           await gpg.presetPassphrase(keygrip, inputs.passphrase).then(stdout => {
             core.debug(stdout);
           });
@@ -55,14 +66,34 @@ async function run(): Promise<void> {
       });
     }
 
-    core.info('🛒 Setting outputs...');
-    context.setOutput('fingerprint', privateKey.fingerprint);
-    context.setOutput('keyid', privateKey.keyID);
-    context.setOutput('name', privateKey.name);
-    context.setOutput('email', privateKey.email);
+    if (inputs.passphrase && inputs.fingerprint) {
+      // Set the passphrase only for the subkey specified in the input `fingerprint`
+
+      core.info('Configuring GnuPG agent');
+      await gpg.configureAgent(gpg.agentConfig);
+
+      await core.group(`Getting keygrip for fingerprint`, async () => {
+        const keygrip = await gpg.getKeygrip(fingerprint);
+        core.info(`Presetting passphrase for key ${fingerprint} with keygrip ${keygrip}`);
+        await gpg.presetPassphrase(keygrip, inputs.passphrase).then(stdout => {
+          core.debug(stdout);
+        });
+      });
+    }
+
+    await core.group(`Setting outputs`, async () => {
+      core.info(`fingerprint=${fingerprint}`);
+      context.setOutput('fingerprint', fingerprint);
+      core.info(`keyid=${privateKey.keyID}`);
+      context.setOutput('keyid', privateKey.keyID);
+      core.info(`name=${privateKey.name}`);
+      context.setOutput('name', privateKey.name);
+      core.info(`email=${privateKey.email}`);
+      context.setOutput('email', privateKey.email);
+    });
 
     if (inputs.gitUserSigningkey) {
-      core.info('🔐 Setting GPG signing keyID for this Git repository');
+      core.info('Setting GPG signing keyID for this Git repository');
       await git.setConfig('user.signingkey', privateKey.keyID, inputs.gitConfigGlobal);
 
       const userEmail = inputs.gitCommitterEmail || privateKey.email;
@@ -73,20 +104,20 @@ async function run(): Promise<void> {
         return;
       }
 
-      core.info(`🔨 Configuring Git committer (${userName} <${userEmail}>)`);
+      core.info(`Configuring Git committer (${userName} <${userEmail}>)`);
       await git.setConfig('user.name', userName, inputs.gitConfigGlobal);
       await git.setConfig('user.email', userEmail, inputs.gitConfigGlobal);
 
       if (inputs.gitCommitGpgsign) {
-        core.info('💎 Sign all commits automatically');
+        core.info('Sign all commits automatically');
         await git.setConfig('commit.gpgsign', 'true', inputs.gitConfigGlobal);
       }
       if (inputs.gitTagGpgsign) {
-        core.info('💎 Sign all tags automatically');
+        core.info('Sign all tags automatically');
         await git.setConfig('tag.gpgsign', 'true', inputs.gitConfigGlobal);
       }
       if (inputs.gitPushGpgsign) {
-        core.info('💎 Sign all pushes automatically');
+        core.info('Sign all pushes automatically');
         await git.setConfig('push.gpgsign', inputs.gitPushGpgsign, inputs.gitConfigGlobal);
       }
     }
@@ -96,16 +127,15 @@ async function run(): Promise<void> {
 }
 
 async function cleanup(): Promise<void> {
-  if (stateHelper.gpgPrivateKey.length <= 0) {
-    core.debug('GPG private key is not defined. Skipping cleanup.');
+  if (stateHelper.fingerprint.length <= 0) {
+    core.debug('Primary key fingerprint is not defined. Skipping cleanup.');
     return;
   }
   try {
-    core.info('🚿 Removing keys');
-    const privateKey = await openpgp.readPrivateKey(stateHelper.gpgPrivateKey);
-    await gpg.deleteKey(privateKey.fingerprint);
+    core.info(`Removing key ${stateHelper.fingerprint}`);
+    await gpg.deleteKey(stateHelper.fingerprint);
 
-    core.info('💀 Killing GnuPG agent');
+    core.info('Killing GnuPG agent');
     await gpg.killAgent();
   } catch (error) {
     core.warning(error.message);

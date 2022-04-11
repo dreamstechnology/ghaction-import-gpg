@@ -20,6 +20,7 @@ ___
 * [Usage](#usage)
   * [Workflow](#workflow)
   * [Sign commits](#sign-commits)
+  * [Use a subkey](#use-a-subkey)
 * [Customizing](#customizing)
   * [inputs](#inputs)
   * [outputs](#outputs)
@@ -28,8 +29,9 @@ ___
 
 ## Features
 
-* Works on Linux, MacOS and Windows [virtual environments](https://help.github.com/en/articles/virtual-environments-for-github-actions#supported-virtual-environments-and-hardware-resources)
+* Works on Linux, macOS and Windows [virtual environments](https://help.github.com/en/articles/virtual-environments-for-github-actions#supported-virtual-environments-and-hardware-resources)
 * Allow to seed the internal cache of `gpg-agent` with provided passphrase
+* Signing-only subkeys support
 * Purge imported GPG key, cache information and kill agent from runner
 * (Git) Enable signing for Git commits, tags and pushes
 * (Git) Configure and check committer info against GPG key
@@ -77,17 +79,13 @@ jobs:
       -
         name: Import GPG key
         id: import_gpg
-        uses: crazy-max/ghaction-import-gpg@v3
+        uses: crazy-max/ghaction-import-gpg@v4
         with:
-          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.PASSPHRASE }}
       -
-        name: GPG user IDs
-        run: |
-          echo "fingerprint: ${{ steps.import_gpg.outputs.fingerprint }}"
-          echo "keyid:       ${{ steps.import_gpg.outputs.keyid }}"
-          echo "name:        ${{ steps.import_gpg.outputs.name }}"
-          echo "email:       ${{ steps.import_gpg.outputs.email }}"
+        name: List keys
+        run: gpg -K
 ```
 
 ### Sign commits
@@ -108,12 +106,12 @@ jobs:
         uses: actions/checkout@v2
       -
         name: Import GPG key
-        uses: crazy-max/ghaction-import-gpg@v3
+        uses: crazy-max/ghaction-import-gpg@v4
         with:
-          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.PASSPHRASE }}
-          git-user-signingkey: true
-          git-commit-gpgsign: true
+          git_user_signingkey: true
+          git_commit_gpgsign: true
       -
         name: Sign commit and push changes
         run: |
@@ -123,6 +121,51 @@ jobs:
           git push
 ```
 
+### Use a subkey
+
+With the input `fingerprint`, you can specify which one of the subkeys in a GPG key you want to use for signing.
+
+```yaml
+name: import-gpg
+
+on:
+  push:
+    branches: master
+
+jobs:
+  import-gpg:
+    runs-on: ubuntu-latest
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v2
+      -
+        name: Import GPG key
+        id: import_gpg
+        uses: crazy-max/ghaction-import-gpg@v4
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.PASSPHRASE }}
+          fingerprint: "C17D11ADF199F12A30A0910F1F80449BE0B08CB8"
+      -
+        name: List keys
+        run: gpg -K
+```
+
+For example, given this GPG key with a signing subkey:
+
+```s
+pub   ed25519 2021-09-24 [C]
+      87F257B89CE462100BEC0FFE6071D218380FDCC8
+      Keygrip = F5C3ABFAAB36B427FD98C4EDD0387E08EA1E8092
+uid           [ unknown] Joe Bar <joe@bar.foo>
+sub   ed25519 2021-09-24 [S]
+      C17D11ADF199F12A30A0910F1F80449BE0B08CB8
+      Keygrip = DEE0FC98F441519CA5DE5D79773CB29009695FEB
+```
+
+You can use the subkey with signing capability whose fingerprint is `C17D11ADF199F12A30A0910F1F80449BE0B08CB8`.
+
 ## Customizing
 
 ### inputs
@@ -131,18 +174,20 @@ Following inputs can be used as `step.with` keys
 
 | Name                                  | Type    | Description                                    |
 |---------------------------------------|---------|------------------------------------------------|
-| `gpg-private-key`                     | String  | GPG private key exported as an ASCII armored version or its base64 encoding (**required**) |
+| `gpg_private_key`                     | String  | GPG private key exported as an ASCII armored version or its base64 encoding (**required**) |
 | `passphrase`                          | String  | Passphrase of the GPG private key |
-| `git-config-global`                   | Bool    | Set Git config global (default `false`) |
-| `git-user-signingkey`                 | Bool    | Set GPG signing keyID for this Git repository (default `false`) |
-| `git-commit-gpgsign`**¹**             | Bool    | Sign all commits automatically. (default `false`) |
-| `git-tag-gpgsign`**¹**                | Bool    | Sign all tags automatically. (default `false`) |
-| `git-push-gpgsign`**¹**               | String  | Sign all pushes automatically. (default `if-asked`) |
-| `git-committer-name`**¹**             | String  | Set commit author's name (defaults to the name associated with the GPG key) |
-| `git-committer-email`**¹**            | String  | Set commit author's email (defaults to the email address associated with the GPG key) |
+| `git_config_global`                   | Bool    | Set Git config global (default `false`) |
+| `git_user_signingkey`                 | Bool    | Set GPG signing keyID for this Git repository (default `false`) |
+| `git_commit_gpgsign`                  | Bool    | Sign all commits automatically. (default `false`) |
+| `git_tag_gpgsign`                     | Bool    | Sign all tags automatically. (default `false`) |
+| `git_push_gpgsign`                    | String  | Sign all pushes automatically. (default `if-asked`) |
+| `git_committer_name`                  | String  | Set commit author's name (defaults to the name associated with the GPG key) |
+| `git_committer_email`                 | String  | Set commit author's email (defaults to the email address associated with the GPG key) |
 | `workdir`                             | String  | Working directory (below repository root) (default `.`) |
+| `fingerprint`                         | String  | Specific fingerprint to use (subkey) |
 
-> **¹** `git-user-signingkey` needs to be enabled for these inputs to be used.
+> `git_user_signingkey` needs to be enabled for `git_commit_gpgsign`, `git_tag_gpgsign`,
+> `git_push_gpgsign`, `git_committer_name`, `git_committer_email` inputs.
 
 ### outputs
 

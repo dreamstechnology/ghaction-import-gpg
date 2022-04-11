@@ -1,5 +1,41 @@
 # Changelog
 
+## 4.3.0 (2022/03/15)
+
+* Update dev dependencies and workflow (#130)
+* Fix error deleting keys with short key id (#129)
+* Bump openpgp from 5.1.0 to 5.2.0 (#128)
+
+## 4.2.0 (2022/03/01)
+
+* Align default ttl with GitHub job run timeout (#126)
+* Delete key using primary key ID not subkey ID (#125)
+* Set passphrase only for the fingerprint being used (#123)
+* Bump openpgp from 5.0.0 to 5.1.0 (#116 #120)
+* Bump actions/github-script from 4 to 6 (#115 #121)
+
+## 4.1.0 (2021/10/15)
+
+* Handle signing-only subkeys (#112)
+* Bump @actions/core from 1.5.0 to 1.6.0 (#114)
+* Bump actions/github-script from 4 to 5 (#113)
+* Bump ansi-regex from 5.0.0 to 5.0.1 (#111)
+* Bump tmpl from 1.0.4 to 1.0.5 (#110)
+
+## 4.0.0 (2021/09/05)
+
+* OpenPGP.js v5 (#78)
+* POSIX-compliant inputs names (#109)
+  * Rename `gpg-private-key` input `gpg_private_key`
+  * Rename `git-config-global` input `git_config_global`
+  * Rename `git-user-signingkey` input `git_user_signingkey`
+  * Rename `git-commit-gpgsign` input `git_commit_gpgsign`
+  * Rename `git-tag-gpgsign` input `git_tag_gpgsign`
+  * Rename `git-push-gpgsign` input `git_push_gpgsign`
+  * Rename `git-committer-name` input `git_committer_name`
+  * Rename `git-committer-email` input `git_committer_email`
+* Bump @actions/core from 1.4.0 to 1.5.0 (#106)
+
 ## 3.2.0 (2021/08/10)
 
 * Add `git-config-global` input (#103)

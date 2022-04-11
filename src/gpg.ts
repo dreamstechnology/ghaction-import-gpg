@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as openpgp from './openpgp';
 
-export const agentConfig = `default-cache-ttl 7200
+export const agentConfig = `default-cache-ttl 21600
 max-cache-ttl 31536000
 allow-preset-passphrase`;
 
@@ -41,7 +41,7 @@ const gpgConnectAgent = async (command: string): Promise<string> => {
       if (res.stderr.length > 0 && res.exitCode != 0) {
         throw new Error(res.stderr);
       }
-      for (let line of res.stdout.replace(/\r/g, '').trim().split(/\n/g)) {
+      for (const line of res.stdout.replace(/\r/g, '').trim().split(/\n/g)) {
         if (line.startsWith('ERR')) {
           throw new Error(line);
         }
@@ -61,10 +61,10 @@ export const getVersion = async (): Promise<Version> => {
         throw new Error(res.stderr);
       }
 
-      let gnupgVersion: string = '';
-      let libgcryptVersion: string = '';
+      let gnupgVersion = '';
+      let libgcryptVersion = '';
 
-      for (let line of res.stdout.replace(/\r/g, '').trim().split(/\n/g)) {
+      for (const line of res.stdout.replace(/\r/g, '').trim().split(/\n/g)) {
         if (line.startsWith('gpg (GnuPG) ')) {
           gnupgVersion = line.substr('gpg (GnuPG) '.length).trim();
         } else if (line.startsWith('gpg (GnuPG/MacGPG2) ')) {
@@ -92,12 +92,12 @@ export const getDirs = async (): Promise<Dirs> => {
         throw new Error(res.stderr);
       }
 
-      let libdir: string = '';
-      let libexecdir: string = '';
-      let datadir: string = '';
-      let homedir: string = '';
+      let libdir = '';
+      let libexecdir = '';
+      let datadir = '';
+      let homedir = '';
 
-      for (let line of res.stdout.replace(/\r/g, '').trim().split(/\n/g)) {
+      for (const line of res.stdout.replace(/\r/g, '').trim().split(/\n/g)) {
         if (line.startsWith('libdir:')) {
           libdir = line.substr('libdir:'.length).replace('%3a', ':').trim();
         } else if (line.startsWith('libexecdir:')) {
@@ -120,7 +120,7 @@ export const getDirs = async (): Promise<Dirs> => {
 
 export const importKey = async (key: string): Promise<string> => {
   const keyFolder: string = fs.mkdtempSync(path.join(os.tmpdir(), 'ghaction-import-gpg-'));
-  const keyPath: string = `${keyFolder}/key.pgp`;
+  const keyPath = `${keyFolder}/key.pgp`;
   fs.writeFileSync(keyPath, (await openpgp.isArmored(key)) ? key : Buffer.from(key, 'base64').toString(), {mode: 0o600});
 
   return await exec
@@ -149,13 +149,46 @@ export const getKeygrips = async (fingerprint: string): Promise<Array<string>> =
       silent: true
     })
     .then(res => {
-      let keygrips: Array<string> = [];
-      for (let line of res.stdout.replace(/\r/g, '').trim().split(/\n/g)) {
+      const keygrips: Array<string> = [];
+      for (const line of res.stdout.replace(/\r/g, '').trim().split(/\n/g)) {
         if (line.startsWith('grp')) {
           keygrips.push(line.replace(/(grp|:)/g, '').trim());
         }
       }
       return keygrips;
+    });
+};
+
+export const parseKeygripFromGpgColonsOutput = (output: string, fingerprint: string): string => {
+  let keygrip = '';
+  let fingerPrintFound = false;
+  const lines = output.replace(/\r/g, '').trim().split(/\n/g);
+
+  for (const line of lines) {
+    if (line.startsWith(`fpr:`) && line.includes(`:${fingerprint}:`)) {
+      // We reach the record with the matching fingerprint.
+      // The next keygrip record is the keygrip for this fingerprint.
+      fingerPrintFound = true;
+      continue;
+    }
+
+    if (line.startsWith('grp:') && fingerPrintFound) {
+      keygrip = line.replace(/(grp|:)/g, '').trim();
+      break;
+    }
+  }
+
+  return keygrip;
+};
+
+export const getKeygrip = async (fingerprint: string): Promise<string> => {
+  return await exec
+    .getExecOutput('gpg', ['--batch', '--with-colons', '--with-keygrip', '--list-secret-keys', fingerprint], {
+      ignoreReturnCode: true,
+      silent: true
+    })
+    .then(res => {
+      return parseKeygripFromGpgColonsOutput(res.stdout, fingerprint);
     });
 };
 
